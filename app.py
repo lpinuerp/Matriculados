@@ -248,7 +248,7 @@ with tab_overview:
     fig.update_layout(template=PLOTLY_TEMPLATE, yaxis_title="Matrícula total", height=420)
     st.plotly_chart(fig, width='stretch')
 
-    st.markdown("### Participación de mercado por tipo de institución")
+    st.markdown("### Participación por tipo de institución")
     share = df.groupby(["AÑO", COL_TIPO1])[COL_TOTAL].sum().reset_index()
     share["pct"] = share.groupby("AÑO")[COL_TOTAL].transform(lambda x: x / x.sum() * 100)
     fig2 = px.area(share, x="AÑO", y="pct", color=COL_TIPO1, groupnorm=None)
