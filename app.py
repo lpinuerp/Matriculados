@@ -1,3 +1,8 @@
+"""
+Radiografía de la Educación Superior en Chile (2017-2025)
+Dashboard interactivo construido sobre la base de matrícula limpia (SIES / MINEDUC).
+"""
+
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -302,7 +307,7 @@ with tab_regional:
 # ──────────────────────────────────────────────────────────────────────────
 with tab_inst:
     st.markdown("### Evolución por subtipo de institución")
-    share2 = df.groupby(["AÑO", COL_TIPO2])[COL_TOTAL].sum().reset_index()
+    share2 = df.groupby(["AÑO", COL_TIPO2])[COL_TOTAL].sum().unstack(fill_value=0).stack().reset_index(name=COL_TOTAL)
     share2["pct"] = share2.groupby("AÑO")[COL_TOTAL].transform(lambda x: x / x.sum() * 100)
     fig = px.area(share2, x="AÑO", y="pct", color=COL_TIPO2)
     fig.update_layout(template=PLOTLY_TEMPLATE, yaxis_title="% de la matrícula", legend_title="", height=420)
@@ -333,23 +338,32 @@ with tab_inst:
 # TAB 4 · ÁREAS DEL CONOCIMIENTO
 # ──────────────────────────────────────────────────────────────────────────
 with tab_areas:
-    st.markdown("### Ranking de áreas del conocimiento: 2017 vs 2025")
+    st.markdown("### Ranking de áreas del conocimiento, año a año (2017-2025)")
+    st.caption(
+        "Cada línea es un área del conocimiento. La posición vertical es su lugar en el ranking "
+        "de matrícula ese año (1 = la de mayor matrícula). Cuando dos líneas se cruzan, esa área "
+        "adelantó o fue adelantada por otra en un año determinado."
+    )
     piv_area = df.groupby(["AÑO", COL_AREA])[COL_TOTAL].sum().reset_index()
+    piv_area["rank"] = piv_area.groupby("AÑO")[COL_TOTAL].rank(ascending=False, method="first")
     y0, y1 = piv_area["AÑO"].min(), piv_area["AÑO"].max()
-    a0 = piv_area[piv_area["AÑO"] == y0].set_index(COL_AREA)[COL_TOTAL].rank(ascending=False)
-    a1 = piv_area[piv_area["AÑO"] == y1].set_index(COL_AREA)[COL_TOTAL].rank(ascending=False)
-    ranks = pd.DataFrame({str(y0): a0, str(y1): a1}).dropna()
 
     fig = go.Figure()
-    for area in ranks.index:
+    for area, g in piv_area.groupby(COL_AREA):
+        g = g.sort_values("AÑO")
         fig.add_trace(go.Scatter(
-            x=[str(y0), str(y1)], y=[ranks.loc[area, str(y0)], ranks.loc[area, str(y1)]],
-            mode="lines+markers+text", name=area,
-            text=[area, area], textposition=["middle left", "middle right"],
-            line=dict(width=2), marker=dict(size=8),
+            x=g["AÑO"], y=g["rank"], mode="lines+markers", name=area,
+            line=dict(width=2.5), marker=dict(size=7),
+            hovertemplate=f"{area}<br>Año %{{x}}<br>Ranking #%{{y}}<extra></extra>",
         ))
-    fig.update_yaxes(autorange="reversed", title="Ranking (1 = mayor matrícula)", showticklabels=False)
-    fig.update_layout(template=PLOTLY_TEMPLATE, showlegend=False, height=520, xaxis_title="")
+        # etiqueta al final de la línea para no depender solo de la leyenda
+        fig.add_annotation(
+            x=g["AÑO"].iloc[-1], y=g["rank"].iloc[-1], text=area, showarrow=False,
+            xanchor="left", xshift=8, font=dict(size=11, color=INK),
+        )
+    fig.update_xaxes(dtick=1, title="")
+    fig.update_yaxes(autorange="reversed", title="Ranking (1 = mayor matrícula)", dtick=1)
+    fig.update_layout(template=PLOTLY_TEMPLATE, showlegend=False, height=560, margin=dict(r=140))
     st.plotly_chart(fig, width='stretch')
 
     col_a, col_b = st.columns([1, 1])
